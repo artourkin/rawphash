@@ -1,4 +1,3 @@
-#include <QCoreApplication>
 #include <iostream>
 #include <pHash.h>
 #include <libraw/libraw.h>
@@ -11,57 +10,118 @@
 
 using namespace std;
 
-struct ph_imagepoint{
-    ulong64 hash;
-    char *id;
-};
 
-struct ph_imagepoint* ph_malloc_imagepoint(){
+int raw2tiff(char *file_input,char * file_output)
+{
+    if(!file_input || !file_output) return 0;
+    int ret;
+    LibRaw  iProcessor;
+    printf("Processing file %s\n",file_input);
+    iProcessor.open_file(file_input);
+    if( (ret = iProcessor.open_file(file_input)) != LIBRAW_SUCCESS)
+    {
+        fprintf(stderr,"Cannot open_file %s: %s\n",file_input,libraw_strerror(ret));
+        return 0;
+    }
 
-    return (struct ph_imagepoint*)malloc(sizeof(struct ph_imagepoint));
+iProcessor.unpack();
 
+    ret = iProcessor.dcraw_process();
+
+    if(LIBRAW_SUCCESS !=ret)
+    {
+        fprintf(stderr,"Cannot do postpocessing on %s: %s\n",
+                file_input,libraw_strerror(ret));
+        if(LIBRAW_FATAL_ERROR(ret))
+            return 0;
+    }
+
+    //  libraw_processed_image_t * image = iProcessor->dcraw_make_mem_image();
+    //  FILE * pFile;
+    //  pFile = fopen ("test.bmp", "wb");
+    //  fprintf (pFile, "P6\n%d %d\n%d\n", image->width, image->height, (1 << image->bits)-1);
+    //  fwrite (image->data , image->data_size, 1, pFile);
+    //  fclose (pFile);
+
+    printf("Writing file %s\n",file_output);
+    if( LIBRAW_SUCCESS != (ret = iProcessor.dcraw_ppm_tiff_writer(file_output)))
+        fprintf(stderr,"Cannot write %s: %s\n",file_output,libraw_strerror(ret));
+    iProcessor.recycle();
 }
 
-int process_image(char *file)
+int path_is_directory (const char* path) {
+    struct stat s_buf;
+
+    if (stat(path, &s_buf))
+        return 0;
+
+    return S_ISDIR(s_buf.st_mode);
+}
+
+void delete_folder_tree (const char* directory_name) {
+    DIR*            dp;
+    struct dirent*  ep;
+    char            p_buf[512] = {0};
+
+    dp = opendir(directory_name);
+
+    while ((ep = readdir(dp)) != NULL) {
+        sprintf(p_buf, "%s/%s", directory_name, ep->d_name);
+        if (path_is_directory(p_buf))
+            delete_folder_tree(p_buf);
+        else
+            unlink(p_buf);
+    }
+
+    closedir(dp);
+    rmdir(directory_name);
+}
+
+
+
+char * generate_tiff(char * path,char *file_raw)
 {
-        // Let us create an image processor
-        LibRaw * iProcessor = new LibRaw();
-
-        // Open the file and read the metadata
-        iProcessor->open_file(file);
-
-        // The metadata are accessible through <a href="API-datastruct-eng.html">data fields of the class</a>
-        printf("Image size: %d x %d\n",iProcessor->imgdata.sizes.width,iProcessor->imgdata.sizes.height);
-
-        // Let us unpack the image
-        iProcessor->unpack();
-        int ret = iProcessor->dcraw_process();
-        // Convert from imgdata.rawdata to imgdata.image:
-        //iProcessor.raw2image();
-        int error= iProcessor->dcraw_ppm_tiff_writer("tmp1.tiff");
-        // And let us print its dump; the data are accessible through <a href="API-datastruct-eng.html">data fields of the class</a>
-
-        //fprintf(error,"Cannot write: %s\n",libraw_strerror(ret));
-        // Finally, let us free the image processor for work with the next image
-        iProcessor->recycle();
+    char file_tiff[100];
+    strcpy(file_tiff,path);
+    strcat(file_tiff,file_raw);
+    strcat(file_tiff, ".tiff");
+    raw2tiff(file_raw,file_tiff);
+    return file_tiff;
 }
 
 int main(int argc, char *argv[])
 {
-    //QCoreApplication a(argc, argv);
 
-    //return a.exec();
-    ulong64 myhash1=0;
-    ulong64 myhash2=0;
-    ph_imagepoint *dp = NULL;
-    ph_dct_imagehash("/home/artur/elsa.jpg", myhash1);
-    ph_dct_imagehash("/home/artur/elsa.jpg", myhash2);
-    dp = ph_malloc_imagepoint();
-    cout<<myhash1<<endl;
-    cout<<myhash2<<endl;
-    int i=  ph_hamming_distance(myhash1, myhash2);
-     cout<<i<<endl;
-    process_image("/home/artur/test.dng");
+    if (argc < 2){
+        printf("no input args\n");
+        printf("expected: \"rawphash image1 image2\"\n");
+        exit(1);
+    }
+
+    char *file_raw1 = argv[1];
+    char *file_raw2 = argv[2];
+    ulong64 hash_tiff1=0;
+    ulong64 hash_tiff2=0;
+
+    char path_tmp[100];
+    strcpy(path_tmp,"tmp/");
+    mkdir(path_tmp, 0755);
+    char file_tiff1[100];
+    char file_tiff2[100];
+    file_tiff1[0] = '\0';
+    file_tiff2[0] = '\0';
+    strcpy(file_tiff1,path_tmp);
+    strcat(file_tiff1,"1.tiff");
+    strcpy(file_tiff2,path_tmp);
+    strcat(file_tiff2,"2.tiff");
+    raw2tiff(file_raw1,file_tiff1);
+    raw2tiff(file_raw2,file_tiff2);
+
+    ph_dct_imagehash(file_tiff1, hash_tiff1);
+    ph_dct_imagehash(file_tiff2, hash_tiff2);
+    int i=  ph_hamming_distance(hash_tiff1, hash_tiff2);
+    cout<<i<<endl;
+    //delete_folder_tree(path_tmp);
     return 0;
 }
 
