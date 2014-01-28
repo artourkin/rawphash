@@ -16,7 +16,7 @@ int raw2tiff(char *file_input,char * file_output)
     if(!file_input || !file_output) return 0;
     int ret;
     LibRaw  iProcessor;
-    printf("Processing file %s\n",file_input);
+    //printf("Processing file %s\n",file_input);
     iProcessor.open_file(file_input);
     if( (ret = iProcessor.open_file(file_input)) != LIBRAW_SUCCESS)
     {
@@ -24,7 +24,7 @@ int raw2tiff(char *file_input,char * file_output)
         return 0;
     }
 
-iProcessor.unpack();
+    iProcessor.unpack();
 
     ret = iProcessor.dcraw_process();
 
@@ -43,7 +43,7 @@ iProcessor.unpack();
     //  fwrite (image->data , image->data_size, 1, pFile);
     //  fclose (pFile);
 
-    printf("Writing file %s\n",file_output);
+   // printf("Writing file %s\n",file_output);
     if( LIBRAW_SUCCESS != (ret = iProcessor.dcraw_ppm_tiff_writer(file_output)))
         fprintf(stderr,"Cannot write %s: %s\n",file_output,libraw_strerror(ret));
     iProcessor.recycle();
@@ -116,7 +116,6 @@ int main(int argc, char *argv[])
     strcat(file_tiff2,"2.tiff");
     raw2tiff(file_raw1,file_tiff1);
     raw2tiff(file_raw2,file_tiff2);
-
     ph_dct_imagehash(file_tiff1, hash_tiff1);
     ph_dct_imagehash(file_tiff2, hash_tiff2);
     int i=  ph_hamming_distance(hash_tiff1, hash_tiff2);
